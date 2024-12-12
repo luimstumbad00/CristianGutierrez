@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GutierrezFloresCristian</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            z-index: 10;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="controls">
+        <form id="directionForm">
+            <br>
+            <label for="sphere1Value">CECyT 9 "Juan de Dios Batiz"</label>
+            <label for="sphere1Value">5IV9 Lineas de Fuerza</label>
+            <br>
+            <label for="sphere1Value">Valor para Esfera 1 (positivo, negativo o 0):</label>
+            <input type="number" id="sphere1Value" value="0">
+            <br>
+            <label for="sphere2Value">Valor para Esfera 2 (positivo, negativo o 0):</label>
+            <input type="number" id="sphere2Value" value="0">
+            <br><br>
+            <button type="button" onclick="updateDirections()">Actualizar</button>
+        </form>
+    </div>
+    
+    <script>
+        // Configuración inicial de Three.js
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Variables para controlar las direcciones de las flechas
+        let sphere1Direction = 0; // 1 = hacia afuera, -1 = hacia adentro, 0 = sin flechas
+        let sphere2Direction = 0;
+
+        // Crear las dos esferas
+        const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+        const sphereMaterial1 = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+        const sphereMaterial2 = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+
+        const sphere1 = new THREE.Mesh(sphereGeometry, sphereMaterial1);
+        sphere1.position.x = -2;  // Desplazar a la izquierda
+        scene.add(sphere1);
+
+        const sphere2 = new THREE.Mesh(sphereGeometry, sphereMaterial2);
+        sphere2.position.x = 2;  // Desplazar a la derecha
+        scene.add(sphere2);
+
+        const curveMaterialOut = new THREE.LineBasicMaterial({ color: 0x0000ff });
+        const curveMaterialIn = new THREE.LineBasicMaterial({ color: 0xff0000 });
+
+        const arrowHeadGeometry = new THREE.ConeGeometry(0.1, 0.3, 8);
+        const arrowHeadMaterialOut = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        const arrowHeadMaterialIn = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+        const outgoingCurves = [];
+        for (let i = 0; i < 12; i++) {
+            const startPoint = new THREE.Vector3(-2, 0, 0);
+            const endPoint = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(4);
+            const controlPoint = new THREE.Vector3((startPoint.x + endPoint.x) / 2, Math.random(), (startPoint.z + endPoint.z) / 2);
+
+            const curve = new THREE.QuadraticBezierCurve3(startPoint, controlPoint, endPoint);
+            const points = curve.getPoints(50);
+            const curveGeometry = new THREE.BufferGeometry().setFromPoints(points);
+
+            const line = new THREE.Line(curveGeometry, curveMaterialOut);
+            line.visible = false; // Inicialmente oculto
+
+            const arrowHead = new THREE.Mesh(arrowHeadGeometry, arrowHeadMaterialOut);
+            arrowHead.visible = false; // Inicialmente oculto
+            arrowHead.position.copy(endPoint);
+            arrowHead.lookAt(controlPoint);
+
+            outgoingCurves.push({ line, curve, controlPoint, arrowHead });
+            scene.add(line);
+            scene.add(arrowHead);
+        }
+
+        const incomingCurves = [];
+        for (let i = 0; i < 12; i++) {
+            const startPoint = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(4);
+            const endPoint = new THREE.Vector3(2, 0, 0);
+            const controlPoint = new THREE.Vector3((startPoint.x + endPoint.x) / 2, Math.random(), (startPoint.z + endPoint.z) / 2);
+
+            const curve = new THREE.QuadraticBezierCurve3(startPoint, controlPoint, endPoint);
+            const points = curve.getPoints(50);
+            const curveGeometry = new THREE.BufferGeometry().setFromPoints(points);
+
+            const line = new THREE.Line(curveGeometry, curveMaterialIn);
+            line.visible = false; // Inicialmente oculto
+
+            const arrowHead = new THREE.Mesh(arrowHeadGeometry, arrowHeadMaterialIn);
+            arrowHead.visible = false; // Inicialmente oculto
+            arrowHead.position.copy(endPoint);
+            arrowHead.lookAt(points[points.length - 2]);
+
+            incomingCurves.push({ line, curve, controlPoint, arrowHead });
+            scene.add(line);
+            scene.add(arrowHead);
+        }
+
+        camera.position.z = 5;
+
+        // Variables para controlar el progreso de las flechas
+        const outgoingProgress = new Array(outgoingCurves.length).fill(0);
+        const incomingProgress = new Array(incomingCurves.length).fill(0);
+
+        function updateDirections() {
+            sphere1Direction = parseInt(document.getElementById('sphere1Value').value);
+            sphere2Direction = parseInt(document.getElementById('sphere2Value').value);
+
+            // Ocultar/mostrar las flechas según el valor de dirección
+            outgoingCurves.forEach(({ line, arrowHead }) => {
+                line.visible = sphere1Direction !== 0;
+                arrowHead.visible = sphere1Direction !== 0;
+            });
+
+            incomingCurves.forEach(({ line, arrowHead }) => {
+                line.visible = sphere2Direction !== 0;
+                arrowHead.visible = sphere2Direction !== 0;
+            });
+        }
+
+        function animate() {
+    requestAnimationFrame(animate);
+
+    const deltaTime = 0.01;
+
+    outgoingCurves.forEach((obj, index) => {
+        if (sphere1Direction === 0) return;
+
+        const { line, curve, arrowHead } = obj;
+
+        // Actualizar el punto inicial para conectar con esfera 1
+        curve.v0.copy(sphere1.position);
+
+        outgoingProgress[index] += deltaTime * Math.sign(sphere1Direction);
+        if (outgoingProgress[index] > 1) outgoingProgress[index] = 0;
+        if (outgoingProgress[index] < 0) outgoingProgress[index] = 1;
+
+        const t = outgoingProgress[index];
+        const position = curve.getPoint(t);
+        const nextPosition = curve.getPoint((t + 0.02) % 1);
+
+        const points = curve.getPoints(50);
+        line.geometry.setFromPoints(points);
+
+        arrowHead.position.copy(position);
+        arrowHead.lookAt(nextPosition);
+    });
+
+    incomingCurves.forEach((obj, index) => {
+        if (sphere2Direction === 0) return;
+
+        const { line, curve, arrowHead } = obj;
+
+        // Actualizar el punto final para conectar con esfera 2
+        curve.v2.copy(sphere2.position);
+
+        incomingProgress[index] += deltaTime * -Math.sign(sphere2Direction);
+        if (incomingProgress[index] > 1) incomingProgress[index] = 0;
+        if (incomingProgress[index] < 0) incomingProgress[index] = 1;
+
+        const t = incomingProgress[index];
+        const position = curve.getPoint(t);
+        const nextPosition = curve.getPoint((t + 0.02) % 1);
+
+        const points = curve.getPoints(50);
+        line.geometry.setFromPoints(points);
+
+        arrowHead.position.copy(position);
+        arrowHead.lookAt(nextPosition);
+    });
+
+    renderer.render(scene, camera);
+}
+
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        animate();
+    </script>
+</body>
+</html>
